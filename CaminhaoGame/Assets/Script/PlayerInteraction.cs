@@ -11,7 +11,7 @@ public class PlayerInteraction : MonoBehaviour
     [Header("Segurar Item")]
     public float distanciaSegurar = 2.5f;
     public float minDistancia = 1.5f;
-    public float maxDistancia = 5f;
+    public float maxDistancia = 2.7f;
     public float scrollSpeed = 2f;
     public float suavizacao = 15f;
 

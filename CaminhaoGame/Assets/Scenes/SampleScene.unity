@@ -618,8 +618,8 @@ MonoBehaviour:
   mainCamera: {fileID: 330585545}
   distanciaInteracao: 5
   distanciaSegurar: 2.5
-  minDistancia: 1.5
-  maxDistancia: 5
+  minDistancia: 2
+  maxDistancia: 3
   scrollSpeed: 2
   suavizacao: 15
   raioColisao: -54.2
