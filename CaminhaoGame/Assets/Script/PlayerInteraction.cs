@@ -27,11 +27,13 @@ public class PlayerInteraction : MonoBehaviour
     public bool travarEixoY = true;
     public float snapAngulo = 90f;
 
+    [Header("Segurança")]
+    public float distanciaMaximaPerderItem = 4.5f;
+
     private Rigidbody rb;
     private GameObject item;
     private CharacterController controller;
     public InteractionUI ui;
-
 
     private bool modoRotacao = false;
 
@@ -51,6 +53,9 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         if (rb == null) return;
+
+        // 🔒 Verifica distância máxima (funciona no modo rotação também)
+        VerificarDistanciaItem();
 
         // Scroll distância
         if (!modoRotacao)
@@ -137,6 +142,7 @@ public class PlayerInteraction : MonoBehaviour
     {
         rb.freezeRotation = false;
         rb.useGravity = true;
+        rb.interpolation = RigidbodyInterpolation.None;
 
         Physics.IgnoreCollision(item.GetComponent<Collider>(), controller, false);
 
@@ -160,7 +166,9 @@ public class PlayerInteraction : MonoBehaviour
         float my = Input.GetAxis("Mouse Y") * velocidadeRotacao * Time.deltaTime;
 
         Vector3 eixo = travarEixoY ? Vector3.up : mainCamera.transform.right;
-        Quaternion rot = Quaternion.AngleAxis(mx, eixo) * Quaternion.AngleAxis(-my, mainCamera.transform.right);
+        Quaternion rot =
+            Quaternion.AngleAxis(mx, eixo) *
+            Quaternion.AngleAxis(-my, mainCamera.transform.right);
 
         rb.MoveRotation(rb.rotation * rot);
     }
@@ -174,5 +182,18 @@ public class PlayerInteraction : MonoBehaviour
         euler.z = Mathf.Round(euler.z / snapAngulo) * snapAngulo;
 
         rb.MoveRotation(Quaternion.Euler(euler));
+    }
+
+    void VerificarDistanciaItem()
+    {
+        float distancia = Vector3.Distance(
+            mainCamera.transform.position,
+            rb.position
+        );
+
+        if (distancia > distanciaMaximaPerderItem)
+        {
+            Drop();
+        }
     }
 }
