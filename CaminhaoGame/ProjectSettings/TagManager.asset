@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Item
   - Truck
+  - NPC
   layers:
   - Default
   - TransparentFX
