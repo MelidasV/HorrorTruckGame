@@ -3,10 +3,10 @@ using Unity.Cinemachine;
 
 public class TruckEntry : MonoBehaviour, IInteractable
 {
-    [Header("Partes do Player (Para desligar sem matar a câmera)")]
-    public GameObject playerGraficos;     // O visual do boneco (PlayerBobs ou Mesh)
-    public CharacterController playerCollider; // A física (está no objeto Pai)
-    public PlayerControl playerMovimento; // O script de andar (está no objeto Pai)
+    [Header("Partes do Player")]
+    public GameObject playerGraficos;
+    public CharacterController playerCollider;
+    public PlayerControl playerMovimento;
 
     [Header("Caminhão")]
     public TruckController scriptMotor;
@@ -24,9 +24,11 @@ public class TruckEntry : MonoBehaviour, IInteractable
 
     private bool dirigindo = false;
 
+    // --- NOVIDADE: Variável para evitar o clique duplo instantâneo ---
+    private float tempoParaPoderSair = 0f;
+
     void Start()
     {
-        // Garante estado inicial
         scriptMotor.enabled = false;
         if (cameraBrain) cameraBrain.enabled = false;
         if (textoAviso) textoAviso.SetActive(false);
@@ -34,9 +36,23 @@ public class TruckEntry : MonoBehaviour, IInteractable
 
     void Update()
     {
-        if (dirigindo && Input.GetKeyDown(KeyCode.E))
+        // Agora verificamos 3 coisas:
+        // 1. Se está dirigindo
+        // 2. Se já passou o tempo de bloqueio (Time.time > tempoParaPoderSair)
+        // 3. Se apertou E
+        if (dirigindo && Time.time > tempoParaPoderSair && Input.GetKeyDown(KeyCode.E))
         {
-            SairDoCaminhao();
+            Rigidbody rbCaminhao = scriptMotor.GetComponent<Rigidbody>();
+            float velocidadeAtual = rbCaminhao.linearVelocity.magnitude * 3.6f;
+
+            if (velocidadeAtual < 5f)
+            {
+                SairDoCaminhao();
+            }
+            else
+            {
+                Debug.Log("Pare o caminhão para sair!");
+            }
         }
     }
 
@@ -49,14 +65,15 @@ public class TruckEntry : MonoBehaviour, IInteractable
     {
         dirigindo = true;
 
-        // --- A MUDANÇA ESTÁ AQUI ---
-        // Em vez de desligar o objeto todo, desligamos só o que precisa
-        if (playerGraficos) playerGraficos.SetActive(false); // Some o corpo
-        if (playerCollider) playerCollider.enabled = false;  // Desliga colisão
-        if (playerMovimento) playerMovimento.enabled = false; // Trava o andar
-        // A Câmera continua ligada porque o Pai continua ativo!
+        // --- AQUI ESTÁ A CORREÇÃO ---
+        // Define que só pode sair daqui a 1 segundo.
+        // Isso impede que o mesmo aperto de botão que te fez entrar, te faça sair.
+        tempoParaPoderSair = Time.time + 1.0f;
 
-        // Configura Cinemachine
+        if (playerGraficos) playerGraficos.SetActive(false);
+        if (playerCollider) playerCollider.enabled = false;
+        if (playerMovimento) playerMovimento.enabled = false;
+
         if (playerCam) playerCam.Priority = 10;
         if (caminhaoCam) caminhaoCam.Priority = 20;
         if (cameraBrain) cameraBrain.enabled = true;
@@ -73,11 +90,8 @@ public class TruckEntry : MonoBehaviour, IInteractable
         if (caminhaoCam) caminhaoCam.Priority = 0;
         if (cameraBrain) cameraBrain.enabled = false;
 
-        // Teleporta o Pai (que nunca foi desligado)
-        // Precisamos mover o Transform do player, pois o CharacterController estava desligado
         playerMovimento.transform.position = localSair.position;
 
-        // Reativa as partes
         if (playerGraficos) playerGraficos.SetActive(true);
         if (playerCollider) playerCollider.enabled = true;
         if (playerMovimento) playerMovimento.enabled = true;
