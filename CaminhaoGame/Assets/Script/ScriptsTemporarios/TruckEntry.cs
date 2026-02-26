@@ -6,7 +6,7 @@ public class TruckEntry : MonoBehaviour, IInteractable
     [Header("Partes do Player")]
     public GameObject playerGraficos;
     public CharacterController playerCollider;
-    public PlayerControl playerMovimento;
+    public PlayerController playerMovimento;
 
     [Header("Caminhão")]
     public TruckController scriptMotor;
@@ -15,7 +15,6 @@ public class TruckEntry : MonoBehaviour, IInteractable
     public GameObject textoAviso;
 
     [Header("Câmeras")]
-    public CinemachineBrain cameraBrain;
     public CinemachineCamera caminhaoCam;
     public CinemachineCamera playerCam;
 
@@ -23,36 +22,27 @@ public class TruckEntry : MonoBehaviour, IInteractable
     public Transform localSair;
 
     private bool dirigindo = false;
-
-    // --- NOVIDADE: Variável para evitar o clique duplo instantâneo ---
     private float tempoParaPoderSair = 0f;
 
     void Start()
     {
         scriptMotor.enabled = false;
-        if (cameraBrain) cameraBrain.enabled = false;
         if (textoAviso) textoAviso.SetActive(false);
+
+        // Garante que o jogo comece com a câmera do Player ligada e a do caminhão desligada
+        if (playerCam) playerCam.gameObject.SetActive(true);
+        if (caminhaoCam) caminhaoCam.gameObject.SetActive(false);
     }
 
     void Update()
     {
-        // Agora verificamos 3 coisas:
-        // 1. Se está dirigindo
-        // 2. Se já passou o tempo de bloqueio (Time.time > tempoParaPoderSair)
-        // 3. Se apertou E
         if (dirigindo && Time.time > tempoParaPoderSair && Input.GetKeyDown(KeyCode.E))
         {
             Rigidbody rbCaminhao = scriptMotor.GetComponent<Rigidbody>();
-            float velocidadeAtual = rbCaminhao.linearVelocity.magnitude * 3.6f;
-
-            if (velocidadeAtual < 5f)
-            {
+            if (rbCaminhao.linearVelocity.magnitude * 3.6f < 5f)
                 SairDoCaminhao();
-            }
             else
-            {
                 Debug.Log("Pare o caminhão para sair!");
-            }
         }
     }
 
@@ -64,19 +54,15 @@ public class TruckEntry : MonoBehaviour, IInteractable
     void EntrarNoCaminhao()
     {
         dirigindo = true;
-
-        // --- AQUI ESTÁ A CORREÇÃO ---
-        // Define que só pode sair daqui a 1 segundo.
-        // Isso impede que o mesmo aperto de botão que te fez entrar, te faça sair.
         tempoParaPoderSair = Time.time + 1.0f;
 
         if (playerGraficos) playerGraficos.SetActive(false);
         if (playerCollider) playerCollider.enabled = false;
         if (playerMovimento) playerMovimento.enabled = false;
 
-        if (playerCam) playerCam.Priority = 10;
-        if (caminhaoCam) caminhaoCam.Priority = 20;
-        if (cameraBrain) cameraBrain.enabled = true;
+        // LIGA A CÂMERA DO CAMINHÃO E DESLIGA A DO PLAYER (Método à prova de falhas)
+        if (playerCam) playerCam.gameObject.SetActive(false);
+        if (caminhaoCam) caminhaoCam.gameObject.SetActive(true);
 
         scriptMotor.enabled = true;
         if (textoAviso) textoAviso.SetActive(false);
@@ -87,8 +73,9 @@ public class TruckEntry : MonoBehaviour, IInteractable
         dirigindo = false;
         scriptMotor.enabled = false;
 
-        if (caminhaoCam) caminhaoCam.Priority = 0;
-        if (cameraBrain) cameraBrain.enabled = false;
+        // DEVOLVE A CÂMERA PARA O PLAYER
+        if (playerCam) playerCam.gameObject.SetActive(true);
+        if (caminhaoCam) caminhaoCam.gameObject.SetActive(false);
 
         playerMovimento.transform.position = localSair.position;
 

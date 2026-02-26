@@ -4,20 +4,15 @@ public class PlayerInteraction : MonoBehaviour
 {
     [Header("Referências")]
     public Camera mainCamera;
+    public InteractionUI ui;
+
+    [Header("Posição da Mão")]
+    [Tooltip("Arraste o objeto HandPoint aqui!")]
+    public Transform pontoSegurar;
 
     [Header("Interação")]
     public float distanciaInteracao = 4f;
-
-    [Header("Segurar Item")]
-    public float distanciaSegurar = 2.5f;
-    public float minDistancia = 1.5f;
-    public float maxDistancia = 2.7f;
-    public float scrollSpeed = 2f;
     public float suavizacao = 15f;
-
-    [Header("Anti-Clipping")]
-    public float raioColisao = 0.5f;
-    public float alturaRayChao = 1.5f;
 
     [Header("Forças")]
     public float forcaArremessoBase = 60f;
@@ -33,20 +28,33 @@ public class PlayerInteraction : MonoBehaviour
     private Rigidbody rb;
     private GameObject item;
     private CharacterController controller;
-    public InteractionUI ui;
-
     private bool modoRotacao = false;
 
     void Start()
     {
-        mainCamera ??= Camera.main;
+        if (mainCamera == null) mainCamera = Camera.main;
         controller = GetComponent<CharacterController>();
     }
 
     void Update()
     {
-        // 🖱 PEGAR / SOLTAR
-        if (Input.GetMouseButtonDown(0))
+        // 1. AVISO VISUAL (Raycast sai da câmera para mirar pelo centro da tela)
+        if (rb == null)
+        {
+            if (Physics.Raycast(mainCamera.transform.position, mainCamera.transform.forward, out RaycastHit hit, distanciaInteracao))
+            {
+                if (hit.collider.TryGetComponent(out Rigidbody hitRb) && ui != null)
+                {
+                    ui.texto.text = "<b>[E]</b> Pegar Objeto";
+                    ui.texto.enabled = true;
+                }
+                else if (ui != null) ui.Esconder();
+            }
+            else if (ui != null) ui.Esconder();
+        }
+
+        // 2. PEGAR / SOLTAR
+        if (Input.GetKeyDown(KeyCode.E))
         {
             if (rb == null) TryGrab();
             else Drop();
@@ -54,18 +62,13 @@ public class PlayerInteraction : MonoBehaviour
 
         if (rb == null) return;
 
-        // 🔒 Verifica distância máxima (funciona no modo rotação também)
+        // 3. SEGURANDO O ITEM
         VerificarDistanciaItem();
 
-        // Scroll distância
-        if (!modoRotacao)
+        if (ui != null)
         {
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
-            distanciaSegurar = Mathf.Clamp(
-                distanciaSegurar - scroll * scrollSpeed,
-                minDistancia,
-                maxDistancia
-            );
+            if (modoRotacao) ui.MostrarRotacao();
+            else ui.MostrarSegurando();
         }
 
         // Toggle modo rotação (H)
@@ -75,54 +78,30 @@ public class PlayerInteraction : MonoBehaviour
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
 
-            // Snap ao sair do modo rotação
-            if (!modoRotacao)
-                SnapRotacao();
+            if (!modoRotacao) SnapRotacao();
         }
 
-        // Rotação manual
-        if (modoRotacao)
-            RotacionarItem();
+        if (modoRotacao) RotacionarItem();
 
-        // Arremessar
-        if (!modoRotacao && Input.GetMouseButtonDown(1))
-            Throw();
+        // Arremessar com Botão Direito
+        if (!modoRotacao && Input.GetMouseButtonDown(1)) Throw();
     }
 
     void FixedUpdate()
     {
-        if (rb == null || modoRotacao) return;
+        if (rb == null || modoRotacao || pontoSegurar == null) return;
 
-        Vector3 origem = mainCamera.transform.position;
-        Vector3 frente = mainCamera.transform.forward.normalized;
+        // O destino do item agora é EXATAMENTE a posição do HandPoint
+        Vector3 destino = pontoSegurar.position;
 
-        Vector3 destino = origem + frente * distanciaSegurar;
-
-        // Colisão frontal
-        if (Physics.SphereCast(origem, raioColisao, frente, out RaycastHit hit, distanciaSegurar))
-            destino = hit.point - frente * (raioColisao + 0.05f);
-
-        // Proteção de chão
-        if (Physics.Raycast(destino + Vector3.up, Vector3.down, out RaycastHit chao, alturaRayChao))
-        {
-            float yMin = chao.point.y + raioColisao;
-            if (destino.y < yMin) destino.y = yMin;
-        }
-
-        rb.MovePosition(Vector3.Lerp(
-            rb.position,
-            destino,
-            suavizacao * Time.fixedDeltaTime
-        ));
+        // Move o item suavemente para a mão
+        rb.MovePosition(Vector3.Lerp(rb.position, destino, suavizacao * Time.fixedDeltaTime));
     }
 
     void TryGrab()
     {
-        if (!Physics.Raycast(
-            mainCamera.transform.position,
-            mainCamera.transform.forward,
-            out RaycastHit hit,
-            distanciaInteracao))
+        // A mira continua sendo pela câmera para facilitar pegar itens no chão
+        if (!Physics.Raycast(mainCamera.transform.position, mainCamera.transform.forward, out RaycastHit hit, distanciaInteracao))
             return;
 
         if (!hit.collider.TryGetComponent(out Rigidbody hitRb)) return;
@@ -135,7 +114,15 @@ public class PlayerInteraction : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        Physics.IgnoreCollision(item.GetComponent<Collider>(), controller, true);
+        if (item.TryGetComponent(out Item itemScript))
+            itemScript.sendoSegurado = true;
+
+        // CORREÇÃO: Ignora TODOS os colisores do item para o player não sair voando
+        Collider[] colisoresDoItem = item.GetComponentsInChildren<Collider>();
+        foreach (Collider col in colisoresDoItem)
+        {
+            Physics.IgnoreCollision(col, controller, true);
+        }
     }
 
     void Drop()
@@ -144,11 +131,21 @@ public class PlayerInteraction : MonoBehaviour
         rb.useGravity = true;
         rb.interpolation = RigidbodyInterpolation.None;
 
-        Physics.IgnoreCollision(item.GetComponent<Collider>(), controller, false);
+        if (item.TryGetComponent(out Item itemScript))
+            itemScript.sendoSegurado = false;
+
+        // CORREÇÃO: Devolve a colisão para TODOS os colisores do item
+        Collider[] colisoresDoItem = item.GetComponentsInChildren<Collider>();
+        foreach (Collider col in colisoresDoItem)
+        {
+            Physics.IgnoreCollision(col, controller, false);
+        }
 
         rb = null;
         item = null;
         modoRotacao = false;
+
+        if (ui != null) ui.Esconder();
     }
 
     void Throw()
@@ -157,6 +154,7 @@ public class PlayerInteraction : MonoBehaviour
         Drop();
 
         float forcaFinal = forcaArremessoBase / Mathf.Max(temp.mass, 0.1f);
+        // Arremessa na direção que a câmera está olhando
         temp.AddForce(mainCamera.transform.forward * forcaFinal, ForceMode.Impulse);
     }
 
@@ -166,9 +164,7 @@ public class PlayerInteraction : MonoBehaviour
         float my = Input.GetAxis("Mouse Y") * velocidadeRotacao * Time.deltaTime;
 
         Vector3 eixo = travarEixoY ? Vector3.up : mainCamera.transform.right;
-        Quaternion rot =
-            Quaternion.AngleAxis(mx, eixo) *
-            Quaternion.AngleAxis(-my, mainCamera.transform.right);
+        Quaternion rot = Quaternion.AngleAxis(mx, eixo) * Quaternion.AngleAxis(-my, mainCamera.transform.right);
 
         rb.MoveRotation(rb.rotation * rot);
     }
@@ -176,24 +172,15 @@ public class PlayerInteraction : MonoBehaviour
     void SnapRotacao()
     {
         Vector3 euler = rb.rotation.eulerAngles;
-
         euler.x = Mathf.Round(euler.x / snapAngulo) * snapAngulo;
         euler.y = Mathf.Round(euler.y / snapAngulo) * snapAngulo;
         euler.z = Mathf.Round(euler.z / snapAngulo) * snapAngulo;
-
         rb.MoveRotation(Quaternion.Euler(euler));
     }
 
     void VerificarDistanciaItem()
     {
-        float distancia = Vector3.Distance(
-            mainCamera.transform.position,
-            rb.position
-        );
-
-        if (distancia > distanciaMaximaPerderItem)
-        {
+        if (pontoSegurar != null && Vector3.Distance(pontoSegurar.position, rb.position) > distanciaMaximaPerderItem)
             Drop();
-        }
     }
 }
