@@ -6,7 +6,7 @@ public class TruckEntry : MonoBehaviour, IInteractable
     [Header("Partes do Player")]
     public GameObject playerGraficos;
     public CharacterController playerCollider;
-    public PlayerController playerMovimento;
+    public PlayerController playerMovimento; // Atualizado para o seu script novo
 
     [Header("Caminhão")]
     public TruckController scriptMotor;
@@ -15,6 +15,7 @@ public class TruckEntry : MonoBehaviour, IInteractable
     public GameObject textoAviso;
 
     [Header("Câmeras")]
+    public CinemachineBrain cameraBrain;
     public CinemachineCamera caminhaoCam;
     public CinemachineCamera playerCam;
 
@@ -22,30 +23,41 @@ public class TruckEntry : MonoBehaviour, IInteractable
     public Transform localSair;
 
     private bool dirigindo = false;
+    private bool pertoDaPorta = false; // NOVA VARIÁVEL
     private float tempoParaPoderSair = 0f;
 
     void Start()
     {
         scriptMotor.enabled = false;
         if (textoAviso) textoAviso.SetActive(false);
-
-        // Garante que o jogo comece com a câmera do Player ligada e a do caminhão desligada
-        if (playerCam) playerCam.gameObject.SetActive(true);
-        if (caminhaoCam) caminhaoCam.gameObject.SetActive(false);
     }
 
     void Update()
     {
+        // 1. PARA ENTRAR (Nova lógica independente de mira!)
+        if (!dirigindo && pertoDaPorta && Input.GetKeyDown(KeyCode.E))
+        {
+            EntrarNoCaminhao();
+        }
+
+        // 2. PARA SAIR
         if (dirigindo && Time.time > tempoParaPoderSair && Input.GetKeyDown(KeyCode.E))
         {
             Rigidbody rbCaminhao = scriptMotor.GetComponent<Rigidbody>();
-            if (rbCaminhao.linearVelocity.magnitude * 3.6f < 5f)
+            float velocidadeAtual = rbCaminhao.linearVelocity.magnitude * 3.6f;
+
+            if (velocidadeAtual < 5f)
+            {
                 SairDoCaminhao();
+            }
             else
+            {
                 Debug.Log("Pare o caminhão para sair!");
+            }
         }
     }
 
+    // Mantemos isso apenas para não dar erro com o sistema antigo de NPCs
     public void Interact(PlayerInteract playerScript)
     {
         EntrarNoCaminhao();
@@ -53,6 +65,7 @@ public class TruckEntry : MonoBehaviour, IInteractable
 
     void EntrarNoCaminhao()
     {
+        if (dirigindo) return; // Evita bugar se apertar duas vezes rápido
         dirigindo = true;
         tempoParaPoderSair = Time.time + 1.0f;
 
@@ -60,7 +73,6 @@ public class TruckEntry : MonoBehaviour, IInteractable
         if (playerCollider) playerCollider.enabled = false;
         if (playerMovimento) playerMovimento.enabled = false;
 
-        // LIGA A CÂMERA DO CAMINHÃO E DESLIGA A DO PLAYER (Método à prova de falhas)
         if (playerCam) playerCam.gameObject.SetActive(false);
         if (caminhaoCam) caminhaoCam.gameObject.SetActive(true);
 
@@ -73,7 +85,6 @@ public class TruckEntry : MonoBehaviour, IInteractable
         dirigindo = false;
         scriptMotor.enabled = false;
 
-        // DEVOLVE A CÂMERA PARA O PLAYER
         if (playerCam) playerCam.gameObject.SetActive(true);
         if (caminhaoCam) caminhaoCam.gameObject.SetActive(false);
 
@@ -86,13 +97,19 @@ public class TruckEntry : MonoBehaviour, IInteractable
 
     void OnTriggerEnter(Collider other)
     {
-        if (!dirigindo && other.CompareTag("Player") && textoAviso)
-            textoAviso.SetActive(true);
+        if (other.CompareTag("Player"))
+        {
+            pertoDaPorta = true;
+            if (!dirigindo && textoAviso) textoAviso.SetActive(true);
+        }
     }
 
     void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("Player") && textoAviso)
-            textoAviso.SetActive(false);
+        if (other.CompareTag("Player"))
+        {
+            pertoDaPorta = false;
+            if (textoAviso) textoAviso.SetActive(false);
+        }
     }
 }
