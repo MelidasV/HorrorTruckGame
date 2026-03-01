@@ -109,7 +109,7 @@ public class PlayerInteraction : MonoBehaviour
         Rigidbody itemAlvo = EncontrarItemProximo();
         if (itemAlvo == null) return;
 
-        PegarItemDireto(itemAlvo); // Reutiliza a nova função abaixo
+        PegarItemDireto(itemAlvo);
     }
 
     void Drop()
@@ -161,7 +161,7 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     // =========================================================
-    // FUNÇÕES NOVAS PARA O CAMINHÃO USAR
+    // COMANDOS PÚBLICOS (Para Caminhão e Loja usarem)
     // =========================================================
     public bool TaSegurandoAlgo()
     {
@@ -170,7 +170,7 @@ public class PlayerInteraction : MonoBehaviour
 
     public void PegarItemDireto(Rigidbody novoItemRb)
     {
-        if (rb != null) Drop(); // Se já tem algo na mão, solta para pegar o novo
+        if (rb != null) Drop();
 
         rb = novoItemRb;
         item = rb.gameObject;
@@ -186,5 +186,17 @@ public class PlayerInteraction : MonoBehaviour
         {
             Physics.IgnoreCollision(col, controller, true);
         }
+    }
+
+    // A LOJA VAI USAR ESTES DOIS ABAIXO:
+    public Item ObterItemSegurado()
+    {
+        if (item != null) return item.GetComponent<Item>();
+        return null;
+    }
+
+    public void ForcarSoltar()
+    {
+        if (rb != null) Drop();
     }
 }
